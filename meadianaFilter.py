@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 
 #img = mpimg.imread('gato.jpg')
-img = np.array(Image.open('prueba.jpg'))
+img = np.array(Image.open('resultado.jpg'))
 
 img.setflags(write=1)
 
@@ -39,6 +39,6 @@ for i in range(img.shape[0]-3):
 #print(imagentratada)
 plt.imshow(imagentratada,cmap='gray')
 plt.xticks([]),plt.yticks([])
-plt.savefig('sinsalpimienta.jpg', bbox_inches='tight', pad_inches=-0.05,dpi=100)
+plt.savefig('resultado2.jpg', bbox_inches='tight', pad_inches=-0.05,dpi=100)
 plt.show()
 

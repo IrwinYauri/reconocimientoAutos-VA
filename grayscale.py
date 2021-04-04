@@ -1,5 +1,5 @@
 from PIL import Image
 
-img = Image.open('culebra.jpg')
+img = Image.open('gato.jpg')
 imgGray = img.convert('L')
-imgGray.save('prueba.jpg')
+imgGray.save('resultado.jpg')
