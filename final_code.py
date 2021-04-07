@@ -1,6 +1,5 @@
 # Importing OpenCV
 import time
-
 import cv2
 
 
@@ -10,9 +9,7 @@ def train_bg_subtractor(inst, cap, num=500):
     while i < 500:
         _ret, frame = cap.read()
         frame = cv2.resize(frame, (0, 0), None, ratio, ratio)
-
-        fgmask= inst.apply(frame, None, 0.001)
-        #cv2.imshow('frame', fgmask)
+        inst.apply(frame, None, 0.001)
 
         i += 1
         if i >= num:
@@ -36,7 +33,7 @@ def filter_img(img):
 
 videos = ["surveillance.m4v", "input.mp4", "videoplayback.mp4", "night.mp4", "night2.mp4", "counting.mp4"]
 # load the video
-cap = cv2.VideoCapture(videos[2])
+cap = cv2.VideoCapture(videos[0])
 
 # parametros
 ratio = 1
@@ -53,7 +50,6 @@ max_contour_area = frameArea / 400
 up_limit = int(counting_line_up * 5 / 6)
 down_limit = int(counting_line_down * 7 / 6)
 
-cap = cv2.VideoCapture('input.mp4')
 
 bg_subtractor = cv2.createBackgroundSubtractorMOG2(
     history=500, detectShadows=True)
@@ -105,7 +101,7 @@ while cap.isOpened():
 
 
     #cv2.imshow("tophat", tophat_img)
-    cv2.imshow("blackhat", blackhat_img)
+    #cv2.imshow("blackhat", blackhat_img)
 
     fgmask = bg_subtractor.apply(frame, None, 0.001)
     cv2.imshow('Filtered Bin', fgmask)
