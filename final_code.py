@@ -1,60 +1,10 @@
-# Importing OpenCV
-import time
 import cv2
+from matplotlib import pyplot as plt
+import matplotlib.image as mpimg
+import numpy as np
+from PIL import Image, ImageFilter
 
-
-def train_bg_subtractor(inst, cap, num=500):
-    print('Training BG Subtractor...')
-    i = 0
-    while i < 500:
-        _ret, frame = cap.read()
-        frame = cv2.resize(frame, (0, 0), None, ratio, ratio)
-        # convertir a escala de grises
-        img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # Filtrado en sal and peper
-        median_img = cv2.medianBlur(img, 3)
-        # Binarización
-        ret, binary_img = cv2.threshold(median_img, 100, 255, cv2.THRESH_BINARY)
-        # detección de bordes
-        canny_img = cv2.Canny(binary_img, 100, 200)
-
-        # Getting the kernel to be used in Top-Hat
-        filterSize = (8, 12)
-        """# Elliptical Kernel
-        >>> cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2,2))
-        array([[0, 1],
-               [1, 1], dtype=uint8)"""
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-
-        #kernel = cv2.getStructuringElement(cv2.MORPH_RECT, filterSize)
-
-        # Applying the Top-Hat operation
-        #tophat_img = cv2.morphologyEx(canny_img, cv2.MORPH_TOPHAT,  kernel)
-        # Applying the Black-Hat operation
-        blackhat_img = cv2.morphologyEx(canny_img,
-                                        cv2.MORPH_BLACKHAT,
-                                        kernel)
-
-        # cv2.imshow('Car Detection System', frame)
-        # cv2.imshow('Filtrado', median_img)
-        # cv2.imshow('Binarizado', binary_img)
-        # cv2.imshow('bordes', canny_img)
-        # cv2.imshow('sobelx', sobelx)
-        # cv2.imshow('sobely', sobely)
-
-        # cv2.imshow("tophat", tophat_img)
-        #cv2.imshow("blackhat", blackhat_img)
-        inst.apply(blackhat_img, None, 0.001)
-
-        i += 1
-        if i >= num:
-            print('Trained!')
-            return cap
-
-
-videos = ["surveillance.m4v", "input.mp4", "videoplayback.mp4", "night.mp4", "night2.mp4", "counting.mp4"]
-# load the video
-cap = cv2.VideoCapture(videos[3])
+cap = cv2.VideoCapture('surveillance.m4v')
 
 # parametros
 ratio = 1
@@ -71,47 +21,85 @@ max_contour_area = frameArea / 400
 up_limit = int(counting_line_up * 5 / 6)
 down_limit = int(counting_line_down * 7 / 6)
 
-bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-    history=500, detectShadows=True)
+# Object detection from stable camera
+object_detector = cv2.createBackgroundSubtractorMOG2()
+kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
 
-# skipping 500 frames to train bg subtractor
-train_bg_subtractor(bg_subtractor, cap, num=500)
-
-while cap.isOpened():
+while True:
     ret, frame = cap.read()
 
-    fgmask = bg_subtractor.apply(frame, None, 0.001)
-    #cv2.imshow('Mask', fgmask)
+    # convertir a escala de grises
+    img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    mask = object_detector.apply(img)
+    # Filtrado en sal and peper
+    imagentratada = cv2.medianBlur(mask, 3)
+    # Binarización
+    ret, imgbinarizado = cv2.threshold(imagentratada, 200, 255, cv2.THRESH_BINARY)
 
-    if ret:
-        filtered_bin_img = fgmask
-        time.sleep(0.02)
+    # Fill any small holes
+    # closing = cv2.morphologyEx(imgbinarizado, cv2.MORPH_CLOSE, kernel)
+    # Remove noise
+    # opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel)
 
-        contours, hierarchy = cv2.findContours(fgmask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_L1)
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area > max_contour_area:
+    # detección de bordes
+    imagen_procesada = cv2.Canny(imgbinarizado, 500, 1000)
+    grad_x = cv2.Sobel(imagen_procesada, cv2.CV_64F, 1, 0, ksize=5)
+    grad_y = cv2.Sobel(imagen_procesada, cv2.CV_64F, 0, 1, ksize=5)
 
-                # --------------Tracking---------------
-                m = cv2.moments(contour)
-                cx = int(m['m10'] / m['m00'])
-                cy = int(m['m01'] / m['m00'])
-                new = True
+    abs_grad_x = cv2.convertScaleAbs(grad_x)
+    abs_grad_y = cv2.convertScaleAbs(grad_y)
 
-                if cy in range(up_limit, down_limit):  # filters out contours that are above line (y starts at top)
-                    # x,y is top left corner
-                    rect_x, rect_y, rect_width, rect_height = cv2.boundingRect(contour)
+    sobel = cv2.addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0)
+    # sobel = cv2.add(grad_x, grad_y)
 
-                    # creates a rectangle around contour
-                    cv2.rectangle(frame, (rect_x, rect_y), (rect_x + rect_width, rect_y + rect_height), (0, 255, 0), 2)
+    # tophat
+    rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    tophat = cv2.morphologyEx(sobel, cv2.MORPH_TOPHAT, rectKernel)
 
-        # show in screen
-        cv2.imshow('Filtered Bin', filtered_bin_img)
-        cv2.imshow('Frame', frame)
-        if cv2.waitKey(1) & 0xff == ord('q'):
-            break
+    rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    blackhat = cv2.morphologyEx(sobel, cv2.MORPH_BLACKHAT, rectKernel)
 
-    else:
+    imgGrayscalePlusTopHat = cv2.add(img, tophat)
+    imgGrayscalePlusTopHatMinusBlackHat = cv2.subtract(imgGrayscalePlusTopHat, blackhat)
+    #img_convertida = cv2.cvtColor(imgGrayscalePlusTopHatMinusBlackHat, cv2.COLOR_GRAY2RGB)
+    #cv2.imshow('Gris convertida', img_convertida)
+    #img3 = cv2.add(frame,img_convertida)
+    #cv2.imshow('img3', img3)
+
+    # Buscamos los contornos de las bolas y los dibujamos en verde
+    contours, _ = cv2.findContours(imgGrayscalePlusTopHatMinusBlackHat, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    #cv2.drawContours(frame, contours, -1, (0, 255, 0), 2)
+
+    # Buscamos el centro de las bolas y lo pintamos en rojo
+    for i in contours:
+        # Calcular el centro a partir de los momentos
+        momentos = cv2.moments(i)
+        if momentos['m00'] != 0:
+            cx = int(momentos['m10'] / momentos['m00'])
+            cy = int(momentos['m01'] / momentos['m00'])
+        else:
+            cx=0
+            cy=0
+
+        # x,y is top left corner
+        rect_x, rect_y, rect_width, rect_height = cv2.boundingRect(i)
+
+        # creates a rectangle around contour
+        cv2.rectangle(frame, (rect_x, rect_y), (rect_x + rect_width, rect_y + rect_height), (0, 255, 0), 2)
+
+    # Mostramos la imagen final
+    cv2.imshow('Final', frame)
+
+
+    # cv2.imshow('tophat', tophat)
+    # cv2.imshow('blackhat', blackhat)
+    # cv2.imshow('imgbinarizado', imgbinarizado)
+    # cv2.imshow('Frame', frame)
+    # cv2.imshow('sobel', sobel)
+    #cv2.imshow('imgGrayscalePlusTopHatMinusBlackHat', imgGrayscalePlusTopHatMinusBlackHat)
+
+    k = cv2.waitKey(30) & 0xff
+    if k == 27:
         break
 cap.release()
 cv2.destroyAllWindows()
